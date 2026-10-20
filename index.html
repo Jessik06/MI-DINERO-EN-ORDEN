@@ -1,0 +1,108 @@
+# MI-DINERO-EN-ORDEN
+Aplicación gratuita para organizar ingresos, gastos, deudas y metas de ahorro.
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#173b70">
+<title>Mi Dinero en Orden</title>
+<style>
+:root{--blue:#173b70;--bright:#2563eb;--bg:#f3f6fb;--green:#15803d;--red:#dc2626}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#172033;padding-bottom:85px}
+header{background:var(--blue);color:white;padding:24px 18px 28px;border-radius:0 0 24px 24px}
+header h1{font-size:23px;margin:0 0 7px}
+header p{margin:0;font-size:13px;opacity:.85}
+main{padding:16px;max-width:650px;margin:auto}
+h2{font-size:20px;margin:8px 0 16px}
+h3{font-size:15px;margin:8px 0}
+.card{background:white;padding:16px;border-radius:16px;margin-bottom:13px;box-shadow:0 2px 10px #173b700c}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.amount{font-size:21px;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
+.green{color:var(--green)}.red{color:var(--red)}.muted{color:#718096;font-size:13px}
+button,select,input{font:inherit}
+button{border:0;border-radius:10px;padding:12px 14px;background:var(--bright);color:white;font-weight:650;cursor:pointer}
+button.secondary{background:#e8efff;color:var(--blue)}
+button.danger{background:#fee2e2;color:#991b1b}
+input,select{width:100%;padding:12px;border:1px solid #d7dfeb;border-radius:10px;background:white;color:#172033;margin:6px 0 13px}
+label{font-size:13px;font-weight:650}
+form button{width:100%}
+nav{position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #e2e8f0;display:flex;justify-content:space-around;padding:8px 2px calc(8px + env(safe-area-inset-bottom));z-index:5}
+nav button{background:transparent;color:#64748b;padding:8px 3px;font-size:11px;flex:1}
+nav button.active{color:var(--bright);background:#eff6ff}
+.item{border-bottom:1px solid #edf0f5;padding:13px 0;display:flex;justify-content:space-between;gap:10px}
+.item:last-child{border-bottom:0}
+.item p{margin:5px 0 0}
+.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#eff6ff;color:#1d4ed8;font-size:11px}
+.progress{height:9px;background:#e5eaf2;border-radius:8px;overflow:hidden;margin:10px 0}
+.progress div{height:100%;background:#16a34a}
+.hidden{display:none}
+.smallbtn{padding:7px 9px;font-size:12px;margin-top:7px}
+.empty{text-align:center;padding:24px 8px;color:#718096;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+<h1>Mi Dinero en Orden</h1>
+<p>Tus ingresos, tus gastos y tus metas en un solo lugar.</p>
+</header>
+<main id="app"></main>
+<nav>
+<button data-tab="Inicio" class="active">⌂<br>Inicio</button>
+<button data-tab="Movimientos">↕<br>Movimientos</button>
+<button data-tab="Deudas">▤<br>Deudas</button>
+<button data-tab="Metas">◎<br>Metas</button>
+<button data-tab="Ajustes">⚙<br>Ajustes</button>
+</nav>
+<script>
+const KEY="miDineroEnOrden_v1";
+let data;
+try{data=JSON.parse(localStorage.getItem(KEY))||null}catch(e){data=null}
+if(!data)data={movements:[],debts:[],goals:[]};
+let tab="Inicio";
+const app=document.getElementById("app");
+const money=(n,c)=>new Intl.NumberFormat("es-PE",{style:"currency",currency:c==="PEN"?"PEN":"USD"}).format((n||0)/100);
+const fmtDate=d=>d?new Date(d+"T12:00:00").toLocaleDateString("es-PE"):"Sin fecha";
+const today=()=>new Date().toISOString().slice(0,10);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function amountInput(label,name){return `<label>${label}</label><input name="${name}" type="number" min="0.01" step="0.01" required placeholder="0.00">`}
+function currencyInput(){return `<label>Moneda</label><select name="currency"><option value="PEN">Soles (S/)</option><option value="USD">Dólares (US$)</option></select>`}
+function card(title,value,cls=""){return `<div class="card"><div class="muted">${title}</div><div class="amount ${cls}">${value}</div></div>`}
+function total(type,c){return data.movements.filter(x=>x.type===type&&x.currency===c).reduce((s,x)=>s+x.cents,0)}
+function movementRows(list){if(!list.length)return `<div class="empty">Todavía no hay movimientos registrados.</div>`;return list.slice().reverse().map(x=>`<div class="item"><div><strong>${esc(x.title)}</strong><p class="muted">${esc(x.category)} · ${fmtDate(x.date)} · ${x.currency==="PEN"?"Soles":"Dólares"}</p><button class="secondary smallbtn" onclick="editMovement('${x.id}')">Editar</button> <button class="danger smallbtn" onclick="deleteMovement('${x.id}')">Eliminar</button></div><strong class="${x.type==="income"?"green":"red"}">${x.type==="income"?"+":"−"} ${money(x.cents,x.currency)}</strong></div>`).join("")}
+function render(){
+document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+if(tab==="Inicio"){
+let debtPEN=data.debts.filter(d=>d.currency==="PEN").reduce((s,d)=>s+d.balance,0);
+let debtUSD=data.debts.filter(d=>d.currency==="USD").reduce((s,d)=>s+d.balance,0);
+app.innerHTML=`<h2>Tu resumen</h2><div class="grid">${card("Disponible en soles",money(total("income","PEN")-total("expense","PEN"),"PEN"))}${card("Disponible en dólares",money(total("income","USD")-total("expense","USD"),"USD"))}${card("Gastos en soles",money(total("expense","PEN"),"PEN"),"red")}${card("Gastos en dólares",money(total("expense","USD"),"USD"),"red")}</div><div class="card"><h3>Deudas pendientes</h3><p>Soles: <strong>${money(debtPEN,"PEN")}</strong></p><p>Dólares: <strong>${money(debtUSD,"USD")}</strong></p></div><div class="card"><h3>Metas de ahorro</h3>${data.goals.length?data.goals.map(g=>`<p>${esc(g.name)} · ${money(g.saved,g.currency)} de ${money(g.target,g.currency)}</p><div class="progress"><div style="width:${Math.min(100,g.target?g.saved/g.target*100:0)}%"></div></div>`).join(""):`<p class="muted">Tus metas aparecerán aquí cuando las registres.</p>`}</div><div class="card"><h3>Movimientos recientes</h3>${movementRows(data.movements.slice(-5))}</div>`;
+}else if(tab==="Movimientos"){
+app.innerHTML=`<h2>Movimientos</h2><div class="card"><h3>Registrar ingreso o gasto</h3><form id="movementForm"><label>Tipo</label><select name="type"><option value="income">Ingreso</option><option value="expense">Gasto</option></select><label>Descripción</label><input name="title" required maxlength="80" placeholder="Ej. Sueldo o alimentación"><label>Categoría</label><select name="category"><option>Sueldo</option><option>Otros ingresos</option><option>Ventas o negocio</option><option>Alimentación</option><option>Transporte</option><option>Vivienda</option><option>Salud</option><option>Servicios</option><option>Educación</option><option>Deudas y cuotas</option><option>Entretenimiento</option><option>Otros gastos</option></select>${amountInput("Importe","amount")}${currencyInput()}<label>Fecha</label><input name="date" type="date" value="${today()}" required><button>Guardar movimiento</button></form></div><div class="card"><h3>Historial</h3>${movementRows(data.movements)}</div>`;
+document.getElementById("movementForm").onsubmit=e=>{e.preventDefault();let f=new FormData(e.target);data.movements.push({id:crypto.randomUUID(),type:f.get("type"),title:f.get("title"),category:f.get("category"),cents:Math.round(Number(f.get("amount"))*100),currency:f.get("currency"),date:f.get("date")});save()};
+}else if(tab==="Deudas"){
+app.innerHTML=`<h2>Mis deudas</h2><div class="card"><h3>Registrar deuda</h3><form id="debtForm"><label>Nombre o concepto</label><input name="name" required placeholder="Ej. Préstamo"><label>Tipo</label><select name="kind"><option value="owe">Lo que debo</option><option value="owed">Lo que me deben</option></select>${amountInput("Monto total","total")}${currencyInput()}<label>Vencimiento</label><input name="due" type="date"><button>Guardar deuda</button></form></div><div class="card">${data.debts.length?data.debts.map(d=>`<div class="item"><div><strong>${esc(d.name)}</strong><p class="muted">${d.kind==="owe"?"Debo":"Me deben"} · Vence: ${fmtDate(d.due)}</p><p>Saldo: ${money(d.balance,d.currency)}</p><button class="smallbtn" onclick="payDebt('${d.id}')">Registrar abono</button> <button class="danger smallbtn" onclick="deleteDebt('${d.id}')">Eliminar</button></div><span class="pill">${d.balance===0?"Pagada":d.due&&d.due<today()?"Vencida":d.due?"Pendiente":"Sin fecha"}</span></div>`).join(""):`<div class="empty">Todavía no has registrado deudas.</div>`}</div>`;
+document.getElementById("debtForm").onsubmit=e=>{e.preventDefault();let f=new FormData(e.target);let n=Math.round(Number(f.get("total"))*100);data.debts.push({id:crypto.randomUUID(),name:f.get("name"),kind:f.get("kind"),total:n,balance:n,currency:f.get("currency"),due:f.get("due"),payments:[]});save()};
+}else if(tab==="Metas"){
+app.innerHTML=`<h2>Mis metas de ahorro</h2><div class="card"><h3>Crear una meta</h3><form id="goalForm"><label>Nombre de la meta</label><input name="name" required placeholder="Ej. Fondo de emergencia">${amountInput("Monto objetivo","target")}${currencyInput()}<label>Fecha límite (opcional)</label><input name="due" type="date"><button>Crear meta</button></form></div><div class="card">${data.goals.length?data.goals.map(g=>`<div class="item"><div style="width:100%"><strong>${esc(g.name)}</strong><p class="muted">Fecha límite: ${fmtDate(g.due)}</p><p>${money(g.saved,g.currency)} de ${money(g.target,g.currency)}</p><div class="progress"><div style="width:${Math.min(100,g.target?g.saved/g.target*100:0)}%"></div></div><button class="smallbtn" onclick="contribute('${g.id}')">Registrar aporte</button> <button class="danger smallbtn" onclick="deleteGoal('${g.id}')">Eliminar</button></div></div>`).join(""):`<div class="empty">Crea tu primera meta de ahorro.</div>`}</div>`;
+document.getElementById("goalForm").onsubmit=e=>{e.preventDefault();let f=new FormData(e.target);data.goals.push({id:crypto.randomUUID(),name:f.get("name"),target:Math.round(Number(f.get("target"))*100),saved:0,currency:f.get("currency"),due:f.get("due")});save()};
+}else{
+app.innerHTML=`<h2>Ajustes y copias</h2><div class="card"><h3>Guardar una copia de seguridad</h3><p class="muted">Descarga tus datos para conservarlos en Archivos. La copia puede contener información financiera privada; guárdala en un lugar seguro.</p><button id="export">Exportar copia JSON</button><hr><h3>Restaurar una copia</h3><input type="file" id="restore" accept=".json,application/json"><p class="muted">La restauración reemplazará los datos actuales tras confirmar.</p><button class="danger" id="clear">Borrar todos los datos</button></div><div class="card"><h3>Privacidad</h3><p class="muted">Los datos se guardan en este navegador. No hay cuenta ni sincronización. Si borras los datos del navegador, puedes perder registros que no hayas respaldado.</p></div>`;
+document.getElementById("export").onclick=()=>{let blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:"application/json"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="mi-dinero-respaldo.json";a.click();URL.revokeObjectURL(a.href)};
+document.getElementById("restore").onchange=async e=>{let file=e.target.files[0];if(!file)return;try{let obj=JSON.parse(await file.text());if(!obj.data||!Array.isArray(obj.data.movements)||!Array.isArray(obj.data.debts)||!Array.isArray(obj.data.goals))throw Error();if(confirm("Se reemplazarán los datos actuales. ¿Deseas continuar?")){data=obj.data;save();alert("Copia restaurada.")}}catch(err){alert("El archivo no parece una copia válida de Mi Dinero en Orden.")}};
+document.getElementById("clear").onclick=()=>{if(confirm("¿Borrar todos los movimientos, deudas y metas? Esta acción no se puede deshacer sin una copia.")){data={movements:[],debts:[],goals:[]};save()}};
+}
+}
+window.deleteMovement=id=>{if(confirm("¿Eliminar este movimiento?")){data.movements=data.movements.filter(x=>x.id!==id);save()}};
+window.editMovement=id=>{let x=data.movements.find(y=>y.id===id);if(!x)return;let title=prompt("Descripción",x.title);if(title===null)return;let amount=prompt("Importe actual: "+(x.cents/100),String(x.cents/100));if(amount===null)return;if(!title.trim()||!Number.isFinite(Number(amount))||Number(amount)<=0){alert("Datos no válidos.");return}x.title=title.trim();x.cents=Math.round(Number(amount)*100);save()};
+window.deleteDebt=id=>{if(confirm("¿Eliminar esta deuda?")){data.debts=data.debts.filter(x=>x.id!==id);save()}};
+window.payDebt=id=>{let d=data.debts.find(x=>x.id===id);let a=prompt("Saldo pendiente: "+money(d.balance,d.currency)+". Importe del abono:");if(a===null)return;let n=Math.round(Number(a)*100);if(!Number.isFinite(n)||n<=0||n>d.balance){alert("Introduce un abono válido que no supere el saldo pendiente.");return}d.balance-=n;d.payments.push({cents:n,date:today()});save();alert("Saldo actualizado. Si deseas contabilizar el pago como gasto, regístralo también en Movimientos; no se registra automáticamente.")};
+window.deleteGoal=id=>{if(confirm("¿Eliminar esta meta?")){data.goals=data.goals.filter(x=>x.id!==id);save()}};
+window.contribute=id=>{let g=data.goals.find(x=>x.id===id);let a=prompt("Ahorro acumulado: "+money(g.saved,g.currency)+". Nuevo aporte:");if(a===null)return;let n=Math.round(Number(a)*100);if(!Number.isFinite(n)||n<=0){alert("Introduce un importe válido.");return}g.saved+=n;save();alert("Meta actualizada. El aporte no se registra como ingreso ni gasto automáticamente.")};
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render();window.scrollTo(0,0)});
+render();
+</script>
+</body>
+</html>
